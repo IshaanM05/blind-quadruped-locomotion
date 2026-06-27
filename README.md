@@ -1,8 +1,7 @@
-# quadruped-distill
+# blind-quadruped-locomotion
 
-**Learning blind quadruped locomotion** — from RL first principles to a proprioception-only
-policy that walks over rough terrain it cannot see, on the Unitree Go2 in
-[Isaac Lab](https://isaac-sim.github.io/IsaacLab/).
+**From RL first principles to a proprioception-only policy that walks over rough terrain it
+cannot see** — on the Unitree Go2 in [Isaac Lab](https://isaac-sim.github.io/IsaacLab/).
 
 This repo reproduces the modern ETH legged-robotics recipe end to end and **documents every
 component well enough to explain it from scratch**. The `docs/` tree is a first-class part of
