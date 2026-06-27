@@ -25,6 +25,9 @@ media/*.gif
 media/*.webm
 !media/.gitkeep
 
+# --- private study / prep notes (local-only, never pushed) ---
+study/
+
 # --- editor / OS ---
 .vscode/
 .idea/
