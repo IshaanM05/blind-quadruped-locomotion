@@ -39,8 +39,8 @@ _Filled in as phases land._
 
 | Metric | Result |
 |---|---|
-| PPO @ CartPole-v1 (3 seeds) | _≥ 475 target_ |
-| PPO @ Pendulum-v1 (3 seeds) | _≥ −250 target_ |
+| PPO @ CartPole-v1 (3 seeds) | **500.0 ± 0.0** ✓ (target ≥ 475) |
+| PPO @ Pendulum-v1 (3 seeds) | **−198.9 ± 16.0** ✓ (target ≥ −250) |
 | Go2 flat tracking error | _< 0.2 m/s target_ |
 | Teacher: max stair height | _Phase 2_ |
 | Student vs teacher on held-out terrain | _Phase 3_ |
