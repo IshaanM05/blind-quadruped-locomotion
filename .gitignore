@@ -1,0 +1,31 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# --- training artifacts (regenerable; never commit — see docs/10_isaaclab) ---
+logs/
+outputs/
+runs/
+wandb/
+*.pt
+*.pth
+*.onnx
+checkpoints/
+
+# --- media binaries (ship demos via GitHub Releases, not git history) ---
+media/*.mp4
+media/*.gif
+media/*.webm
+!media/.gitkeep
+
+# --- editor / OS ---
+.vscode/
+.idea/
+.DS_Store
