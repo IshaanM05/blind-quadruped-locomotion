@@ -38,7 +38,7 @@ games the reward.
 | stock baseline (reference) | 34.6 | 0.187 | 0.355 | — |
 | A (task only) | 41.0 | 0.156 | 0.415 | **Confirmed visually: "off and a bit weird"** — twitchy, exactly as predicted |
 | B (+ regularization) | 39.2 | 0.131 | 0.237 | not yet watched, but *both* tracking axes improved despite lower raw reward |
-| C (+ gait shaping) | _pending_ | _pending_ | _pending_ | _pending_ |
+| C (+ gait shaping) | 39.5 | 0.118 (train) / **0.054** (eval) | 0.225 (train) / **0.051** (eval) | **PASS** target <0.2 m/s |
 
 Stage B's result is the more interesting one methodologically: adding penalty terms *dropped*
 the raw mean reward (penalties are subtracted), which could look like "worse" at a glance — but

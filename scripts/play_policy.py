@@ -6,8 +6,11 @@ loading logic this mirrors), but instead of opening a GUI window it just accumul
 the reusable eval tool the guide's Phase 1 checklist asks for, meant to outlive Phase 1
 (Phase 2/3 policies can be evaluated the same way).
 
-Usage (from the Isaac Lab venv):
-    python scripts/play_policy.py --task QuadrupedDistill-Flat-Go2-StageC-v0 \\
+Usage (from the Isaac Lab venv) — note the `-u`: Omniverse's `simulation_app.close()` tears the
+process down at a low level that skips Python's normal atexit stdout flush, so a block-buffered
+(i.e. redirected-to-file or piped) run can silently lose all of this script's prints unless
+stdout is unbuffered:
+    python -u scripts/play_policy.py --task QuadrupedDistill-Flat-Go2-StageC-v0 \\
         --checkpoint /path/to/model_499.pt --num-envs 64 --episodes 20
 """
 
