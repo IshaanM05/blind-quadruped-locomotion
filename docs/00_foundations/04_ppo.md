@@ -74,7 +74,27 @@ a gait in minutes, so sample-efficiency isn't the bottleneck; stability and simp
 
 - `algorithms/ppo/ppo_discrete.py`, `ppo_continuous.py` — the loss above, end to end.
 - `tests/` — clip-branch logic on crafted tensors.
-- Locomotion uses rsl_rl's PPO (same math, adaptive-KL LR) — `docs/10_isaaclab/`.
+- Locomotion uses rsl_rl's PPO (same math, adaptive-KL LR) — see the diff note in `docs/10_isaaclab/`.
+
+### Ablation: which details actually matter (Pendulum-v1, 3 seeds each)
+
+`ppo_continuous.py` exposes `--no-orthogonal-init`, `--no-adv-norm`, `--no-vloss-clip`,
+`--no-lr-anneal`, `--no-grad-clip` (run via `scripts/ablate_ppo_details.py`):
+
+| Config | Mean ± std | Gate (>=−250) |
+|---|---|---|
+| baseline (all details on) | −198.9 ± 16.0 | PASS |
+| no advantage normalization | −251.5 ± 43.7 | **FAIL** |
+| no LR annealing | −217.0 ± 23.0 | PASS (worse) |
+
+Dropping **advantage normalization** doesn't just hurt the mean — it nearly **triples the
+seed-to-seed variance** (16.0 → 43.7). Without it, the policy-gradient scale isn't normalized
+per-minibatch, so a batch with unusually large-magnitude advantages produces a disproportionately
+large update; some seeds get a lucky, well-scaled batch early and converge fine, others don't —
+that's the mechanism behind the variance blowup, not just a worse average. **LR annealing** has a
+smaller but still real effect (mean drops slightly, variance up ~1.4x): without decay, the
+optimizer keeps taking full-sized steps late in training when the policy is already close to
+converged, occasionally kicking it back out of a good region.
 
 ## Explain-it-back
 

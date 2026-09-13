@@ -14,5 +14,8 @@ results run with >=3 seeds (report mean +- std); single-seed RL numbers are nois
 | 2026-06-27 | 0 | A2C (GAE bootstrap), CartPole | 60k steps, 2 seeds | 253.5 ± 64.3 | learns; still climbing at 60k — bridge to PPO | _phase0_ |
 | 2026-06-27 | 0 | **PPO discrete — GATE** | 150k steps, 3 seeds | **500.0 ± 0.0** | **PASS (>=475)**; perfect, all seeds | _phase0_ |
 | 2026-06-27 | 0 | **PPO continuous — GATE** | 400k steps, 3 seeds | **−198.9 ± 16.0** | **PASS (>=−250)**; all seeds under the bar | _phase0_ |
+| 2026-09-13 | 0 | 37-details ablation: baseline regression check | 400k steps, 3 seeds, all details on | −198.9 ± 16.0 | exact match to recorded gate — new ablation flags are no-ops by default | `65b2034` |
+| 2026-09-13 | 0 | 37-details ablation: no advantage normalization | 400k steps, 3 seeds, `--no-adv-norm` | −251.5 ± 43.7 | **FAIL**; mean drops below gate AND variance ~2.7x baseline — adv-norm both centers and stabilizes the update | _pending_ |
+| 2026-09-13 | 0 | 37-details ablation: no LR annealing | 400k steps, 3 seeds, `--no-lr-anneal` | −217.0 ± 23.0 | PASS but worse mean + ~1.4x variance vs baseline — smaller, real effect | _pending_ |
 
 <!-- Append new rows below. Keep newest at the bottom. -->

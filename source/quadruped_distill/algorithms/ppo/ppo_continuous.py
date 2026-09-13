@@ -13,6 +13,12 @@ Gate: >= -250 mean return on Pendulum-v1 across >= 3 seeds.
 
 Usage:
     python -m quadruped_distill.algorithms.ppo.ppo_continuous --seeds 3
+
+Ablation flags (see docs/00_foundations/04_ppo.md and Huang et al. "37 implementation details
+of PPO"): each ``--no-*`` flag turns OFF a detail that is ON by default, so the default run is
+an exact regression check against the recorded gate result.
+    python -m quadruped_distill.algorithms.ppo.ppo_continuous --seeds 3 --no-adv-norm
+    python -m quadruped_distill.algorithms.ppo.ppo_continuous --seeds 3 --no-lr-anneal
 """
 
 from __future__ import annotations
@@ -25,33 +31,38 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
+from torch.utils.tensorboard import SummaryWriter
 
 from quadruped_distill.algorithms.ppo.common import set_seed
 
 
-def layer_init(layer: nn.Linear, std: float = np.sqrt(2)) -> nn.Linear:
-    nn.init.orthogonal_(layer.weight, std)
-    nn.init.constant_(layer.bias, 0.0)
+def layer_init(layer: nn.Linear, std: float = np.sqrt(2), orthogonal: bool = True) -> nn.Linear:
+    if orthogonal:
+        nn.init.orthogonal_(layer.weight, std)
+        nn.init.constant_(layer.bias, 0.0)
     return layer
 
 
 class GaussianActorCritic(nn.Module):
-    def __init__(self, obs_dim: int, act_dim: int, act_scale: float):
+    def __init__(
+        self, obs_dim: int, act_dim: int, act_scale: float, orthogonal_init: bool = True
+    ):
         super().__init__()
         self.act_scale = act_scale
+        oi = orthogonal_init
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 64)),
+            layer_init(nn.Linear(obs_dim, 64), orthogonal=oi),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(64, 64), orthogonal=oi),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
+            layer_init(nn.Linear(64, 1), std=1.0, orthogonal=oi),
         )
         self.mean = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 64)),
+            layer_init(nn.Linear(obs_dim, 64), orthogonal=oi),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(64, 64), orthogonal=oi),
             nn.Tanh(),
-            layer_init(nn.Linear(64, act_dim), std=0.01),
+            layer_init(nn.Linear(64, act_dim), std=0.01, orthogonal=oi),
         )
         # state-independent learned log-std (docs/00_foundations/05_continuous_control.md)
         self.log_std = nn.Parameter(torch.zeros(act_dim))
@@ -93,13 +104,23 @@ def train(
     max_grad: float,
     lr: float,
     device: str,
+    orthogonal_init: bool = True,
+    adv_norm: bool = True,
+    vloss_clip: bool = True,
+    lr_anneal: bool = True,
+    grad_clip: bool = True,
+    log_dir: str | None = None,
 ) -> float:
     set_seed(seed)
+    # Tiny 64x64 MLP: PyTorch's default (one thread per core) causes thread-launch/sync
+    # overhead to dominate the actual compute on a laptop with many cores. Cap it.
+    torch.set_num_threads(4)
+    writer = SummaryWriter(log_dir) if log_dir else None
     envs = [gym.make("Pendulum-v1") for _ in range(num_envs)]
     obs_dim = envs[0].observation_space.shape[0]
     act_dim = envs[0].action_space.shape[0]
     act_scale = float(envs[0].action_space.high[0])  # Pendulum: +-2.0
-    agent = GaussianActorCritic(obs_dim, act_dim, act_scale).to(device)
+    agent = GaussianActorCritic(obs_dim, act_dim, act_scale, orthogonal_init).to(device)
     opt = torch.optim.Adam(agent.parameters(), lr=lr, eps=1e-5)
 
     batch_size = num_envs * num_steps
@@ -120,7 +141,8 @@ def train(
     ep_returns: list[float] = []
 
     for update in range(num_updates):
-        opt.param_groups[0]["lr"] = lr * (1.0 - update / num_updates)
+        if lr_anneal:
+            opt.param_groups[0]["lr"] = lr * (1.0 - update / num_updates)
 
         for t in range(num_steps):
             cur_t = torch.as_tensor(cur, dtype=torch.float32, device=device)
@@ -172,25 +194,42 @@ def train(
                 _, _, newlogp, entropy, newval = agent.act(b_obs[mb], b_raw[mb])
                 ratio = (newlogp - b_logp[mb]).exp()
                 adv = b_adv[mb]
-                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+                if adv_norm:
+                    adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
                 pg1 = -adv * ratio
                 pg2 = -adv * torch.clamp(ratio, 1 - clip, 1 + clip)
                 policy_loss = torch.max(pg1, pg2).mean()
 
-                v_clip = b_val[mb] + torch.clamp(newval - b_val[mb], -clip, clip)
-                v_loss = (
-                    0.5 * torch.max((newval - b_ret[mb]) ** 2, (v_clip - b_ret[mb]) ** 2).mean()
-                )
+                if vloss_clip:
+                    v_clip = b_val[mb] + torch.clamp(newval - b_val[mb], -clip, clip)
+                    v_loss = (
+                        0.5
+                        * torch.max((newval - b_ret[mb]) ** 2, (v_clip - b_ret[mb]) ** 2).mean()
+                    )
+                else:
+                    v_loss = 0.5 * ((newval - b_ret[mb]) ** 2).mean()
                 loss = policy_loss - ent_coef * entropy.mean() + vf_coef * v_loss
 
                 opt.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), max_grad)
+                if grad_clip:
+                    nn.utils.clip_grad_norm_(agent.parameters(), max_grad)
                 opt.step()
+
+        if writer is not None:
+            step = (update + 1) * batch_size
+            if ep_returns:
+                writer.add_scalar("return/last_50_mean", statistics.mean(ep_returns[-50:]), step)
+            writer.add_scalar("loss/policy", policy_loss.item(), step)
+            writer.add_scalar("loss/value", v_loss.item(), step)
+            writer.add_scalar("entropy", entropy.mean().item(), step)
+            writer.add_scalar("lr", opt.param_groups[0]["lr"], step)
 
     for e in envs:
         e.close()
+    if writer is not None:
+        writer.close()
     return statistics.mean(ep_returns[-50:]) if ep_returns else 0.0
 
 
@@ -210,6 +249,12 @@ def main() -> None:
     p.add_argument("--max-grad", type=float, default=0.5)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--device", default="cpu")
+    p.add_argument("--no-orthogonal-init", action="store_true", help="ablate orthogonal init")
+    p.add_argument("--no-adv-norm", action="store_true", help="ablate advantage normalization")
+    p.add_argument("--no-vloss-clip", action="store_true", help="ablate value-loss clipping")
+    p.add_argument("--no-lr-anneal", action="store_true", help="ablate linear LR annealing")
+    p.add_argument("--no-grad-clip", action="store_true", help="ablate global grad-norm clipping")
+    p.add_argument("--log-dir", default=None, help="tensorboard log root (per-seed subdirs)")
     args = p.parse_args()
 
     finals = []
@@ -229,6 +274,12 @@ def main() -> None:
             args.max_grad,
             args.lr,
             args.device,
+            orthogonal_init=not args.no_orthogonal_init,
+            adv_norm=not args.no_adv_norm,
+            vloss_clip=not args.no_vloss_clip,
+            lr_anneal=not args.no_lr_anneal,
+            grad_clip=not args.no_grad_clip,
+            log_dir=f"{args.log_dir}/seed{s}" if args.log_dir else None,
         )
         finals.append(score)
         print(f"seed {s}: final avg return (last 50 eps) = {score:.1f}")
