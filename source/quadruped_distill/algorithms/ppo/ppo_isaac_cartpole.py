@@ -24,6 +24,13 @@ Key differences from ``ppo_continuous.py``'s Gymnasium rollout loop:
 MUST run inside the Isaac Lab venv, not this package's own ``.venv``:
     source /home/ishaan/Desktop/IsaacLab-Proj/activate_isaaclab.sh
     python -m quadruped_distill.algorithms.ppo.ppo_isaac_cartpole --num-envs 4096 --headless
+    python -m quadruped_distill.algorithms.ppo.ppo_isaac_cartpole \\
+        --task QuadrupedDistill-Reacher-v0 --num-envs 512 --headless
+
+Despite the filename (kept for the already-committed Phase 0 gate/docs referencing it), this
+trainer is task-agnostic via ``--task`` — it works for any Isaac Lab env exposing a single
+``{"policy": tensor}`` observation group and a continuous action space, which is why Phase 0.5's
+reacher env reuses it rather than re-deriving PPO a third time.
 """
 
 from __future__ import annotations
@@ -54,20 +61,23 @@ def train(
     max_grad: float,
     lr: float,
     headless: bool,
+    task: str = "Isaac-Cartpole-v0",
     log_dir: str | None = None,
 ) -> float:
     # Imports that need the Isaac Sim app running go inside train(), after AppLauncher starts
     # (see main()) — importing isaaclab/gymnasium-registered tasks before the sim app exists
     # fails, so this module can still be imported for --help without booting the simulator.
     import gymnasium as gym
-    import isaaclab_tasks  # noqa: F401  (registers Isaac-Cartpole-v0 with gym)
+    import isaaclab_tasks  # noqa: F401  (registers Isaac-Cartpole-v0 etc. with gym)
     from isaaclab_tasks.utils import parse_env_cfg
+
+    import quadruped_distill.tasks  # noqa: F401  (registers this project's own tasks, e.g. the reacher)
 
     set_seed(seed)
     device = "cuda"
 
-    env_cfg = parse_env_cfg("Isaac-Cartpole-v0", device=device, num_envs=num_envs)
-    env = gym.make("Isaac-Cartpole-v0", cfg=env_cfg)
+    env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs)
+    env = gym.make(task, cfg=env_cfg)
 
     obs_dim = env.observation_space["policy"].shape[-1]
     act_dim = env.action_space.shape[-1]
@@ -181,6 +191,7 @@ def train(
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--task", default="Isaac-Cartpole-v0")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--num-envs", type=int, default=4096)
     p.add_argument("--num-steps", type=int, default=16)
@@ -218,9 +229,10 @@ def main() -> None:
         args.max_grad,
         args.lr,
         args.headless,
+        task=args.task,
         log_dir=args.log_dir,
     )
-    print(f"\nown-PPO on Isaac-Cartpole-v0 | final mean return (last 100 eps) = {score:.2f}")
+    print(f"\nown-PPO on {args.task} | final mean return (last 100 eps) = {score:.2f}")
 
     simulation_app.close()
 
