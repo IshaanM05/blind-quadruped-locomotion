@@ -59,7 +59,7 @@ PPO's paper is simple; making it *work* is in the details. The ones implemented 
 - **Learning-rate annealing** — or, in rsl_rl, **adaptive LR from a target KL** (≈0.01): if the
   measured policy KL overshoots, shrink the LR; if it's tiny, grow it. This "hidden gem" largely
   prevents the approx-KL spikes / clip-fraction blowups that wreck naive PPO. See
-  [glossary](../glossary.md) and the rsl_rl diff note in `notes/`.
+  [glossary](../glossary.md) and [10_isaaclab/01_rsl_rl_diff](../10_isaaclab/01_rsl_rl_diff.md).
 
 ## Why PPO here (and not DQN/SAC)?
 
@@ -74,7 +74,7 @@ a gait in minutes, so sample-efficiency isn't the bottleneck; stability and simp
 
 - `algorithms/ppo/ppo_discrete.py`, `ppo_continuous.py` — the loss above, end to end.
 - `tests/` — clip-branch logic on crafted tensors.
-- Locomotion uses rsl_rl's PPO (same math, adaptive-KL LR) — see the diff note in `docs/10_isaaclab/`.
+- Locomotion uses rsl_rl's PPO (same math, adaptive-KL LR) — see [10_isaaclab/01_rsl_rl_diff](../10_isaaclab/01_rsl_rl_diff.md).
 
 ### Ablation: which details actually matter (Pendulum-v1, 3 seeds each)
 

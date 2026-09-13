@@ -23,6 +23,7 @@ Read in order. The empirical companion is [`../notes/experiment_log.md`](../note
 
 ### 10 — Isaac Lab architecture
 - [The manager-based environment model](10_isaaclab/README.md)
+- [rsl_rl vs our PPO: a diff-style note](10_isaaclab/01_rsl_rl_diff.md)
 
 ### 20 — Flat locomotion (Phase 1)
 - [MDP design for velocity tracking, term by term](20_locomotion/README.md)
