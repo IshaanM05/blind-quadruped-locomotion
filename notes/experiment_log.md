@@ -17,5 +17,7 @@ results run with >=3 seeds (report mean +- std); single-seed RL numbers are nois
 | 2026-09-13 | 0 | 37-details ablation: baseline regression check | 400k steps, 3 seeds, all details on | −198.9 ± 16.0 | exact match to recorded gate — new ablation flags are no-ops by default | `65b2034` |
 | 2026-09-13 | 0 | 37-details ablation: no advantage normalization | 400k steps, 3 seeds, `--no-adv-norm` | −251.5 ± 43.7 | **FAIL**; mean drops below gate AND variance ~2.7x baseline — adv-norm both centers and stabilizes the update | _pending_ |
 | 2026-09-13 | 0 | 37-details ablation: no LR annealing | 400k steps, 3 seeds, `--no-lr-anneal` | −217.0 ± 23.0 | PASS but worse mean + ~1.4x variance vs baseline — smaller, real effect | _pending_ |
+| 2026-09-13 | 0 | rsl_rl baseline on Isaac-Cartpole-v0 (ground truth for bridge gate) | 4096 envs, 16 steps/env, 150 iters (default `CartpolePPORunnerCfg`) | mean reward 4.95 | reference number for own-PPO bridge comparison | _n/a, framework baseline_ |
+| 2026-09-13 | 0 | **Isaac Lab bridge — GATE**: own PPO on Isaac-Cartpole-v0 via Isaac Lab's batched Gym API | same config as rsl_rl run above, 9.83M total env steps | mean return 4.78 (last 100 eps) | **PASS**; within ~3.4% of rsl_rl. Found+fixed: `action_space.high` is `inf` for effort-controlled joints (Isaac Lab scales internally via `JointEffortActionCfg`); act_scale must be 1.0, not read from the env | _pending_ |
 
 <!-- Append new rows below. Keep newest at the bottom. -->

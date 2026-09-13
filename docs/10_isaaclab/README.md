@@ -35,4 +35,28 @@ Each term is a Python function receiving the **whole `(num_envs,)` batch** and r
 
 ## Source to read & annotate
 `source/isaaclab_tasks/.../locomotion/velocity/velocity_env_cfg.py`, its `mdp/rewards.py`, and
-the Go2 configs — then `rsl_rl` `ppo.py` + `on_policy_runner.py` (diff note in `notes/`).
+the Go2 configs — then `rsl_rl` `ppo.py` + `on_policy_runner.py` (diff note: [01_rsl_rl_diff](01_rsl_rl_diff.md)).
+
+## First bridge result (Phase 0 deferred item, done ahead of the formal 0.5 study)
+
+Before writing custom envs, Phase 0 required proving the from-scratch PPO (`ppo_continuous.py`'s
+`GaussianActorCritic`, unmodified) works through Isaac Lab's actual batched-tensor Gym interface,
+not just Gymnasium's. `algorithms/ppo/ppo_isaac_cartpole.py` wraps `Isaac-Cartpole-v0` (4096
+parallel envs, one GPU tensor, no per-env Python loop) and trains with our own rollout/PPO-update
+loop instead of rsl_rl's.
+
+**Gate: comparable to rsl_rl's baseline reward on the same task, same config** (4096 envs, 16
+steps/env, 150 iterations — rsl_rl's own default `CartpolePPORunnerCfg`):
+
+| | Mean return (last 100 episodes) |
+|---|---|
+| rsl_rl baseline | 4.95 |
+| our PPO | **4.78** (~3.4% below) |
+
+**PASS.** One real Isaac Lab gotcha this surfaced: `Isaac-Cartpole-v0`'s action space is
+`Box(-inf, inf)` — Isaac Lab's `JointEffortActionCfg(scale=100.0)` already converts a
+normalized policy action into real torque internally, so the policy should output actions in
+roughly `[-1, 1]` directly. Naively reading `env.action_space.high` for our own external scaling
+(the Gymnasium-style pattern `ppo_continuous.py` uses for Pendulum) gives `inf`, and multiplying
+a tanh-squashed action by `inf` corrupts the physics on the very first step. Fix: `act_scale=1.0`
+for Isaac Lab manager-/direct-based tasks — the env's own action manager does the unit conversion.
