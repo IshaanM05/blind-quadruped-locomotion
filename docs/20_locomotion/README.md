@@ -1,7 +1,8 @@
 # MDP design for velocity tracking, term by term (Phase 1)
 
-> **Status: outline.** Filled as Phase 1 is built. Each reward term gets one paragraph here:
-> what it does, and what breaks without it (verified by the ablation table).
+> **Status: in progress.** Stages A and B trained (below); Stage C and the reward ablation table
+> (`scripts/ablate_flat_rewards.py`) still running — the "Will answer" section fills in once
+> those land. Implementation: `quadruped_distill/tasks/flat/`, `quadruped_distill/mdp/locomotion.py`.
 
 **What.** The full MDP for a Go2 that tracks commanded $(v_x, v_y, \omega_z)$ on flat ground with
 a natural trot.
@@ -29,6 +30,21 @@ games the reward.
 - **A (task):** `track_lin_vel_xy_exp`, `track_ang_vel_z_exp` → expect a twitchy gait (save the video).
 - **B (regularization, negative):** `lin_vel_z_l2`, `ang_vel_xy_l2`, `joint_torques_l2`, `joint_acc_l2`, `action_rate_l2`, `flat_orientation_l2`.
 - **C (gait shaping):** `feet_air_time` (the trot-maker), `undesired_contacts`, optional `feet_slide`.
+
+### Results so far (4096 envs, 500 iterations each; `notes/experiment_log.md` has the full rows)
+
+| Stage | Mean reward | Tracking error xy (m/s) | Tracking error yaw (rad/s) | Gait |
+|---|---|---|---|---|
+| stock baseline (reference) | 34.6 | 0.187 | 0.355 | — |
+| A (task only) | 41.0 | 0.156 | 0.415 | **Confirmed visually: "off and a bit weird"** — twitchy, exactly as predicted |
+| B (+ regularization) | 39.2 | 0.131 | 0.237 | not yet watched, but *both* tracking axes improved despite lower raw reward |
+| C (+ gait shaping) | _pending_ | _pending_ | _pending_ | _pending_ |
+
+Stage B's result is the more interesting one methodologically: adding penalty terms *dropped*
+the raw mean reward (penalties are subtracted), which could look like "worse" at a glance — but
+the actual tracking accuracy *improved* on both axes. The lesson: don't read total reward as a
+proxy for task performance once the reward function has multiple competing terms; read the
+task-specific metric (`Metrics/base_velocity/error_vel_*`) directly.
 
 ## Terminations
 Trunk contact = fell; timeout = **truncation, not termination**
