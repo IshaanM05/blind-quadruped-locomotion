@@ -67,3 +67,50 @@ visceral experience is the point of writing all four.
 2. Prove $\mathbb{E}[\nabla\log\pi \cdot b(s)] = 0$ for an action-independent baseline.
 3. Why is reward-to-go a valid (unbiased) estimator?
 4. Mechanistically, why does the value baseline reduce variance without adding bias?
+
+## §4.4 concept-check answers (guide questions 1, 2, 6, 8)
+
+**Q1. Why does the policy gradient theorem let us avoid differentiating through the environment
+dynamics?** Because $\log p_\theta(\tau) = \log p(s_0) + \sum_t\log\pi_\theta(a_t\mid s_t) +
+\sum_t\log P(s_{t+1}\mid s_t,a_t)$, and the dynamics terms $p(s_0)$, $P$ don't depend on $\theta$
+— their gradient is exactly zero. See the boxed result above; this cancellation is the entire
+reason model-free RL doesn't need a differentiable simulator.
+
+**Q2. What goes wrong with plain REINFORCE that the value baseline fixes? Why doesn't the
+baseline bias the gradient?** Plain REINFORCE weights $\nabla\log\pi$ by the full Monte-Carlo
+return $\hat G_t$, which sums many random future rewards — high variance, most visible as huge
+seed-to-seed spread in the learning curves (`reinforce.py`, no baseline). Subtracting $b(s_t) =
+V^\pi(s_t)$ centers that weight around zero without changing its expectation, because for any
+$b$ that doesn't depend on the sampled action, $\mathbb{E}_{a\sim\pi}[\nabla_\theta\log\pi_\theta(a\mid s)\,b(s)]
+= b(s)\,\nabla_\theta\sum_a\pi_\theta(a\mid s) = b(s)\,\nabla_\theta 1 = 0$ — subtracting zero in
+expectation, so no bias, only variance reduction (see "Baseline" above).
+
+**Q6. Why do we add an entropy bonus, and what happens to gait diversity if you set it to 0?**
+Deferred to Phase 1. The entropy bonus keeps the action distribution from collapsing to a
+deterministic point estimate before the policy has explored enough to find a good gait; setting
+$c_2=0$ risks premature convergence to a single, possibly suboptimal behavior. But "what happens
+to gait diversity" is an empirical claim about *locomotion*, which doesn't exist yet in Phase
+0 — CartPole and Pendulum don't have a notion of "gait." Answering this honestly requires running
+the Go2 flat-locomotion task (Phase 1) with entropy coefficient on vs. off and observing the
+actual policies, not asserting a result we haven't measured. See `study/prep/progress.md` for the
+tracked deferral.
+
+**Q8. Your Week 3 variance plots: explain mechanistically why the baseline reduced variance in
+your own runs.** Mechanistically: REINFORCE's per-step gradient weight is the *full* trajectory
+return, which is identical for every timestep in an episode regardless of how good that specific
+action was — a global, high-magnitude, high-variance signal applied uniformly. The value baseline
+replaces it with $\hat G_t - V(s_t)$, a *local*, typically much smaller-magnitude signal (how much
+better than expected this state's continuation was), so the same gradient estimator variance
+formula ($\mathrm{Var}[X - c]$ minimized at $c=\mathbb{E}[X]$ for the optimal constant baseline)
+directly predicts a variance drop when $b\approx V^\pi$.
+
+Honesty check against our own recorded numbers (`notes/experiment_log.md`): REINFORCE was
+104.7 ± 34.1 and REINFORCE+baseline was 355.4 ± 41.8 (both 2 seeds). The **mean** jumped exactly
+as theory predicts, but the raw **std** did not visibly drop (34.1 → 41.8) — with only 2 seeds,
+final-return standard deviation is far too noisy an estimator to demonstrate the effect cleanly
+(2 samples barely constrain a std estimate at all). The theoretical variance reduction is about
+the *policy-gradient estimator itself* within a run, not necessarily the *across-seed spread of
+final returns* — those are related but distinct quantities, and this repo's Phase 0 runs measured
+the latter with too few seeds to isolate the former. A cleaner demonstration would log the
+gradient norm's variance across minibatches directly, or use ≥10 seeds for the final-return
+comparison — neither was done here, so this note says so rather than overclaiming.

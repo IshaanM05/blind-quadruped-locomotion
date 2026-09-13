@@ -68,3 +68,25 @@ talking point — see [01_mdp_and_returns](01_mdp_and_returns.md) and the Phase 
 2. Show $\mathbb{E}[\delta_t]=A_t$ under the true value function.
 3. Why must timeouts bootstrap but terminations not? What breaks if you confuse them?
 4. Write the GAE backward recursion from memory and explain each term.
+
+## §4.4 concept-check answers (guide questions 3, 7)
+
+**Q3. What exactly does GAE's $\lambda$ trade off? What do $\lambda=0$ and $\lambda=1$ reduce
+to?** Bias against variance in the advantage estimate. $\lambda=0$ collapses the exponentially-
+weighted sum to just $\delta_t$ — pure one-step TD: low variance (bootstraps immediately on the
+critic) but biased whenever $V$ is imperfect. $\lambda=1$ makes every $(\gamma\lambda)^l$ weight
+equal to $\gamma^l$, recovering the full Monte-Carlo advantage $\hat G_t - V(s_t)$: unbiased but
+high variance, since $\hat G_t$ sums arbitrarily many random future rewards. See "The bias–variance
+dial" and the GAE derivation above; $\lambda\approx0.95$ used throughout this repo sits deliberately
+close to the MC end while still damping variance via the geometric decay.
+
+**Q7. Derive why $\mathbb{E}[r_t + \gamma V(s_{t+1}) - V(s_t)]$ equals the advantage under the
+true value function.** By definition $A^\pi(s_t,a_t) = Q^\pi(s_t,a_t) - V^\pi(s_t)$, and the
+Bellman expectation equation gives $Q^\pi(s_t,a_t) = \mathbb{E}_{s_{t+1}}[r_t + \gamma
+V^\pi(s_{t+1})]$ (the expected immediate reward plus the discounted value of wherever the
+dynamics take you next). Substituting: $A^\pi(s_t,a_t) = \mathbb{E}[r_t + \gamma
+V^\pi(s_{t+1})] - V^\pi(s_t) = \mathbb{E}[r_t + \gamma V^\pi(s_{t+1}) - V^\pi(s_t)] =
+\mathbb{E}[\delta_t]$ — exactly the TD error, in expectation, under the *true* $V^\pi$. This is
+why $\delta_t$ is a valid (if noisy, single-sample) advantage estimator, and why GAE — a weighted
+sum of $\delta_t$'s — estimates the same quantity with a tunable bias/variance trade rather than
+a different one.

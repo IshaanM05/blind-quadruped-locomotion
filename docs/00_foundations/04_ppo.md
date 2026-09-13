@@ -103,3 +103,27 @@ converged, occasionally kicking it back out of a good region.
 3. Why is PPO on-policy, and what does that imply about sample reuse?
 4. What does the entropy bonus do; what happens at $c_2=0$?
 5. How does adaptive-KL LR prevent destructive updates, and what would you log to see it working?
+
+## §4.4 concept-check answers (guide questions 4, 5)
+
+**Q4. Why does PPO clip the probability ratio instead of the gradient? What failure mode of
+vanilla PG / what idea from TRPO does this address?** Vanilla policy gradient (and the naive
+importance-weighted surrogate $\mathbb{E}[r_t(\theta)A_t]$ that lets you reuse data) can be pushed
+arbitrarily high by making $r_t$ huge on a single high-advantage sample — nothing stops the
+optimizer from taking a reckless step that destroys the policy. TRPO fixes this with a hard KL
+trust-region constraint; PPO approximates the same intent far more cheaply by clipping the
+*objective* itself, not the gradient. Clipping the objective removes the *incentive* to move the
+ratio far from 1 (the "min" makes the bound pessimistic — see "The clipped surrogate objective"
+above); clipping the *gradient* instead would still chase the same unbounded optimum, just more
+slowly, so it doesn't fix the underlying problem — only the clipped objective changes what the
+optimizer is even trying to do.
+
+**Q5. Why is PPO on-policy, and what does that imply about sample reuse?** PPO's clipped
+surrogate is only a valid (importance-weighted) approximation of the true policy gradient when
+the *current* policy $\pi_\theta$ hasn't drifted too far from the policy $\pi_{\theta_\text{old}}$
+that collected the data — the clip explicitly bounds how far that drift is allowed to go before
+the objective stops rewarding it. This means data can be reused for several epochs (unlike a
+single-sample REINFORCE step) but *not indefinitely*: once the policy has moved on, the collected
+rollout is stale and must be discarded and re-collected. This is the direct trade PPO makes
+against fully off-policy methods (e.g. SAC), which can reuse a replay buffer indefinitely at the
+cost of a fiddlier, less stable algorithm — see "Why PPO here" above.
