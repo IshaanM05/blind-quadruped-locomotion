@@ -50,7 +50,57 @@ task-specific metric (`Metrics/base_velocity/error_vel_*`) directly.
 Trunk contact = fell; timeout = **truncation, not termination**
 ([03_variance_and_gae](../00_foundations/03_variance_and_gae.md)).
 
-## Will answer (one paragraph each, post-ablation)
-For every reward term: its mathematical form, its weight, the failure mode it prevents, and the
-qualitative gait change when it's removed. Plus: why `action_rate_l2` is the single biggest
-contributor to non-jittery motion; why a fraction of envs are commanded to stand still.
+## Per-term results (from `scripts/ablate_flat_rewards.py`, 200-iter short runs — see
+`notes/experiment_log.md` for the full table; read these as directional, not final, since Stage
+C itself trains 500 iterations)
+
+**`track_lin_vel_xy_exp` / `track_ang_vel_z_exp`.** The only two positive/task terms — everything
+else is either a penalty or a shaping bonus layered on top. Exponential kernel (not a hard
+threshold) so the gradient stays informative even far from the target.
+
+**`action_rate_l2`** — penalizes `||a_t - a_{t-1}||²`. **Confirmed the guide's claim**: removing
+it nearly doubled yaw tracking error (0.062→0.113 rad/s), the single biggest degradation in the
+whole ablation table. Mechanism: without it, PPO has no reason to prefer a smooth action
+trajectory over a noisy one with the same expected task reward — the policy exploits any slack in
+the tracking reward with jittery, high-frequency joint commands that happen to average out
+correctly but destabilize yaw control specifically (yaw depends on differential leg timing,
+which jitter disrupts more than straight-line xy motion does).
+
+**`flat_orientation_l2`** — penalizes nonzero xy-components of projected gravity (base tilt).
+Removing it gave the **worst xy tracking of any ablation** (0.101 m/s) — a tilted base doesn't
+just look wrong, it actively corrupts the body-frame velocity the tracking reward is computed
+against, so orientation regularization turns out to be load-bearing for the task reward itself,
+not merely cosmetic.
+
+**`lin_vel_z_l2` / `ang_vel_xy_l2` / `joint_torques_l2` / `joint_acc_l2`** — all showed only mild
+effects within 200 iterations (roughly ±10% on tracking error, within the ablation's noise band).
+This is expected: these are secondary regularizers (bounce, roll/pitch wobble, energy,
+jerk) whose value compounds over longer training and shows up more in gait *naturalness* — a
+qualitative property tracking error doesn't measure — than in raw tracking accuracy.
+
+**`feet_air_time` / `undesired_contacts`** — both showed **no measurable tracking-error
+penalty when removed** (if anything, marginally better numbers). This is not evidence they're
+unimportant — it's a limitation of the metric: these terms exist to prevent specific *gait
+pathologies* (shuffling instead of stepping; knee/thigh-walking) that a velocity-tracking-error
+number cannot see at all. Properly evaluating them needs either video or a contact-count/air-time
+statistic, neither of which this ablation pass collected. Honest gap, not a finding that they
+don't matter.
+
+**Why a fraction of envs are commanded to stand still** (`rel_standing_envs=0.1` in
+`CommandsCfg`): without some zero-command envs, the policy never practices the "stay balanced
+with no velocity target" regime, which is a genuinely different control problem (active
+balancing without directional momentum) from tracking a nonzero command.
+
+## Entropy coefficient — answering Phase 0's deferred Q6
+
+Phase 0's concept-check Q6 ("what happens to gait diversity if you set the entropy coefficient to
+0?") was explicitly deferred because it needed real locomotion data. The zero-entropy ablation
+here gives a partial, honest answer: killing entropy caused a **mild tracking degradation** (xy
+error +5%, 0.084→0.089 m/s) rather than a dramatic collapse — consistent with the policy
+converging faster to a narrower, less-explored behavior that's slightly worse at handling the
+full range of commanded velocities. **What this does *not* show**: literal gait diversity (foot
+placement variety, trot-pattern robustness) isn't something tracking-error alone measures — that
+would need either video comparison across seeds or a foot-contact-pattern statistic, neither of
+which was collected here. So Q6 is now backed by real data on *tracking robustness*, but the
+*visual gait diversity* half of the question would need a dedicated video-based follow-up to
+answer as fully as the "gait shaping" terms above.

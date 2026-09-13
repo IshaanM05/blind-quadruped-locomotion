@@ -86,14 +86,21 @@ $b$ that doesn't depend on the sampled action, $\mathbb{E}_{a\sim\pi}[\nabla_\th
 expectation, so no bias, only variance reduction (see "Baseline" above).
 
 **Q6. Why do we add an entropy bonus, and what happens to gait diversity if you set it to 0?**
-Deferred to Phase 1. The entropy bonus keeps the action distribution from collapsing to a
+Answered in Phase 1 (`docs/20_locomotion/README.md`'s entropy-coefficient ablation), with an
+honest caveat on scope. The entropy bonus keeps the action distribution from collapsing to a
 deterministic point estimate before the policy has explored enough to find a good gait; setting
-$c_2=0$ risks premature convergence to a single, possibly suboptimal behavior. But "what happens
-to gait diversity" is an empirical claim about *locomotion*, which doesn't exist yet in Phase
-0 — CartPole and Pendulum don't have a notion of "gait." Answering this honestly requires running
-the Go2 flat-locomotion task (Phase 1) with entropy coefficient on vs. off and observing the
-actual policies, not asserting a result we haven't measured. See `study/prep/progress.md` for the
-tracked deferral.
+$c_2=0$ risks premature convergence to a single, possibly suboptimal behavior.
+
+**What the Phase 1 data actually shows**: zeroing `entropy_coef` on the flat Go2 task caused a
+mild tracking-error degradation (xy error +5%, 0.084→0.089 m/s over a 200-iteration run) rather
+than a dramatic collapse — consistent with faster convergence to a narrower, less-explored
+behavior that handles the commanded-velocity range slightly worse. **What it does not show**:
+the question's literal phrase, "gait diversity" — foot-placement variety, trot robustness across
+seeds — isn't something a scalar tracking-error number captures; that would need video comparison
+or a foot-contact-pattern statistic, neither of which was collected. So this is real data on
+*tracking robustness* under zero entropy, not a direct measurement of *gait diversity* — the
+gap between "what we measured" and "what the question literally asks" is itself worth noticing
+as a lesson in what a given metric can and can't tell you.
 
 **Q8. Your Week 3 variance plots: explain mechanistically why the baseline reduced variance in
 your own runs.** Mechanistically: REINFORCE's per-step gradient weight is the *full* trajectory
