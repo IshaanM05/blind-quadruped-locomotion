@@ -33,17 +33,42 @@ Lee et al. 2020 paradigm, the conceptual core of how quadrupeds like ANYmal walk
 | **3** | Teacher→student **DAgger distillation** into a recurrent, proprioception-only student | `algorithms/distill/`, `docs/40_distillation/` |
 | **4** | *(stretch)* Vision / perceptive locomotion | `docs/50_vision/` |
 
+## Technical highlights
+
+**Phase 0 — PPO from first principles (complete)**
+
+Wrote the full policy-gradient progression from a blank file — no RL library, no `stable-baselines`:
+
+| Stage | Key idea | CartPole mean (3 seeds) |
+|---|---|---|
+| REINFORCE (MC, no baseline) | log-derivative trick, reward-to-go | 104.7 ± 34.1 |
+| REINFORCE + value baseline | E[∇log π · b(s)] = 0 unbiasedness | 355.4 ± 41.8 (+240) |
+| A2C (n-step / GAE bootstrap) | bias-variance dial, TD target | 253.5 ± 64.3 |
+| **PPO discrete** (CartPole-v1) | clipped surrogate, K-epoch minibatches, adv-norm | **500.0 ± 0.0** ✓ |
+| **PPO continuous** (Pendulum-v1) | diagonal Gaussian, learned log-std, tanh-squash Jacobian | **−198.9 ± 16.0** ✓ |
+
+Implementation follows Huang et al. "37 implementation details of PPO" (ICLR 2022): orthogonal
+weight init, global grad-norm clipping, value-loss clipping, linear LR annealing, per-batch
+advantage normalization. Correct **truncation vs termination** bootstrapping under gymnasium 1.x
+`NEXT_STEP` autoreset semantics (separate boot mask and episode-chain mask in GAE).
+
+GAE unit-tested against hand-computed trajectories; CI: ruff + pytest on every push (GitHub
+Actions, CPU-only — Phase 0 runs without Isaac Sim).
+
+**Phases 1–3 — in progress (see [roadmap](#roadmap))**
+
+Go2 flat locomotion training in Isaac Lab, followed by rough-terrain teacher with curriculum and
+domain randomization, followed by DAgger distillation into a recurrent blind student.
+
 ## Results
 
-_Filled in as phases land._
-
-| Metric | Result |
-|---|---|
-| PPO @ CartPole-v1 (3 seeds) | **500.0 ± 0.0** ✓ (target ≥ 475) |
-| PPO @ Pendulum-v1 (3 seeds) | **−198.9 ± 16.0** ✓ (target ≥ −250) |
-| Go2 flat tracking error | _< 0.2 m/s target_ |
-| Teacher: max stair height | _Phase 2_ |
-| Student vs teacher on held-out terrain | _Phase 3_ |
+| Metric | Value | Status |
+|---|---|---|
+| PPO @ CartPole-v1 (3 seeds, 150k steps) | **500.0 ± 0.0** | ✓ Phase 0 complete |
+| PPO @ Pendulum-v1 (3 seeds, 400k steps) | **−198.9 ± 16.0** | ✓ Phase 0 complete |
+| Go2 flat velocity tracking error | _target < 0.2 m/s_ | Phase 1 in progress |
+| Teacher: max negotiable stair height | _Phase 2_ | — |
+| Student vs teacher on held-out terrain | _Phase 3_ | — |
 
 ## Quickstart
 
