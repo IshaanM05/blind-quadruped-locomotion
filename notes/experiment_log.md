@@ -38,5 +38,6 @@ results run with >=3 seeds (report mean +- std); single-seed RL numbers are nois
 | no `joint_torques_l2` | 0.0756 | 0.0692 | ~unchanged — energy/actuator-stress proxy, mild effect within 200 iters |
 | no `ang_vel_xy_l2` | 0.0742 | 0.0674 | ~unchanged/slightly better — wobble guard; may need a longer horizon to show its value |
 | zero `entropy_coef` | 0.0885 | 0.0644 | mild degradation (xy +5%) — see Q6 discussion below |
+| 2026-09-20 | 2 | Baseline reference: stock `Isaac-Velocity-Rough-Unitree-Go2-v0` + rsl_rl | 4096 envs, `UnitreeGo2RoughPPORunnerCfg` default (1500 iters) | mean reward 22.77; tracking error xy 0.375 m/s, yaw 0.416 rad/s; mean terrain level 5.69/10 | reference number our rebuilt rough teacher is compared against. Run took ~2h18m wall-clock (4096 envs, terrain+raycaster overhead) — much longer than Phase 1's flat runs, budget accordingly for the full teacher + ablation runs | _n/a, framework baseline_ |
 
 <!-- Append new rows below. Keep newest at the bottom. -->
