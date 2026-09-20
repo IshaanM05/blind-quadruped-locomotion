@@ -5,4 +5,4 @@ Importing this package registers all of this project's own Gym task IDs (each su
 its own stock tasks.
 """
 
-from . import flat, reacher  # noqa: F401
+from . import flat, reacher, rough  # noqa: F401
