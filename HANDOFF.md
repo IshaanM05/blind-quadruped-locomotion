@@ -39,9 +39,15 @@ plain venv activate.
   I missed it). Without it, PhysX silently drops contacts past its default buffer size at 4096
   envs on rough terrain ("Patch buffer overflow" errors — a physics-correctness bug, not just a
   perf warning). Fixed in `rough_env_cfg.py::RoughGo2EnvCfg.__post_init__`.
-- **Full teacher training** (`QuadrupedDistill-Rough-Go2-v0`, 1500 iters, 4096 envs) — check
-  whether this is still running, finished, or needs restarting (see "Resuming" below). This is
-  the actual Phase 2 deliverable, not yet complete as of this handoff.
+- **Full teacher training** (`QuadrupedDistill-Rough-Go2-v0`, 1500 iters, 4096 envs) — **paused
+  mid-run, not finished**. Latest checkpoint: `model_500.pt` in run folder
+  `2026-09-21_23-25-57` (i.e. `logs/rsl_rl/quadruped_distill_rough_go2/2026-09-21_23-25-57/model_500.pt`).
+  One thing worth knowing: the first long-run attempt hung (process alive, GPU idle, no log
+  progress for 30+ min) partway through — likely a CUDA-context issue from a laptop
+  suspend/resume during the multi-hour run, not a code bug (the exact same command resumed and
+  ran cleanly from the checkpoint afterward). If a future run hangs the same way (log stops
+  advancing, `nvidia-smi` shows no real compute activity), it's the same class of issue: kill and
+  resume from the latest `model_N.pt`, don't assume the code regressed.
 - **Not yet done**: the two ablation runs (no-curriculum, symmetric-critic — both required per
   the guide, expected results: no-curriculum should learn much slower/fail, symmetric-critic
   should show worse sample efficiency), then `eval_push_robustness.py` needs to actually be run
@@ -58,12 +64,18 @@ find /home/ishaan/Desktop/IsaacLab-Proj/quadruped-distill/logs/rsl_rl/quadruped_
 ```
 If a checkpoint exists but training didn't reach 1500 iterations, either resume from the latest
 `model_N.pt` or just restart — checkpoints save every 50 iterations (`save_interval=50`) so
-little is lost either way. To (re)start the full teacher:
+little is lost either way. As of this handoff, the latest checkpoint is
+`logs/rsl_rl/quadruped_distill_rough_go2/2026-09-21_23-25-57/model_500.pt` (500/1500 iterations
+done). To resume from it:
 ```bash
 source /home/ishaan/Desktop/IsaacLab-Proj/activate_isaaclab.sh
 cd /home/ishaan/Desktop/IsaacLab-Proj/quadruped-distill
-python scripts/train_rsl_rl.py --task QuadrupedDistill-Rough-Go2-v0 --headless --num_envs 4096
+python scripts/train_rsl_rl.py --task QuadrupedDistill-Rough-Go2-v0 --headless --num_envs 4096 \
+    --resume --load_run 2026-09-21_23-25-57 --checkpoint model_500.pt
 ```
+(Or check for a later checkpoint first — `find logs/rsl_rl/quadruped_distill_rough_go2 -name "model_*.pt" | sort`
+— in case a later session advanced it further before this handoff was last updated. To start
+fully fresh instead, drop `--resume --load_run ... --checkpoint ...`.)
 (`scripts/train_rsl_rl.py` is a thin wrapper that registers our `QuadrupedDistill-*` gym IDs
 before running Isaac Lab's own rsl_rl `train.py` — required because Isaac Lab's script only
 registers its own tasks by default. `scripts/play_rsl_rl.py` is the same pattern for GUI
