@@ -216,6 +216,11 @@ class RoughGo2EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
+        # Rough terrain generates far more contact patches (stairs/rocks/obstacles) than a flat
+        # plane; PhysX's default GPU patch buffer is too small and silently DROPS contacts past
+        # its limit (not just a perf warning — corrupts physics), confirmed by hitting
+        # "Patch buffer overflow" errors at 4096 envs. Matches Isaac Lab's own stock rough cfg.
+        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
         if self.scene.terrain.terrain_generator is not None:
