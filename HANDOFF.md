@@ -39,61 +39,73 @@ plain venv activate.
   I missed it). Without it, PhysX silently drops contacts past its default buffer size at 4096
   envs on rough terrain ("Patch buffer overflow" errors — a physics-correctness bug, not just a
   perf warning). Fixed in `rough_env_cfg.py::RoughGo2EnvCfg.__post_init__`.
-- **Full teacher training** (`QuadrupedDistill-Rough-Go2-v0`, 1500 iters, 4096 envs) — **paused
-  mid-run, not finished**. Latest checkpoint: `model_500.pt` in run folder
-  `2026-09-21_23-25-57` (i.e. `logs/rsl_rl/quadruped_distill_rough_go2/2026-09-21_23-25-57/model_500.pt`).
-  One thing worth knowing: the first long-run attempt hung (process alive, GPU idle, no log
-  progress for 30+ min) partway through — likely a CUDA-context issue from a laptop
-  suspend/resume during the multi-hour run, not a code bug (the exact same command resumed and
-  ran cleanly from the checkpoint afterward). If a future run hangs the same way (log stops
-  advancing, `nvidia-smi` shows no real compute activity), it's the same class of issue: kill and
-  resume from the latest `model_N.pt`, don't assume the code regressed.
+- **Full teacher training — DONE, GATE PASS.** `QuadrupedDistill-Rough-Go2-v0`, trained to
+  iteration 1900 (stopped manually once mean reward plateaued 22-24 with no trend over ~300
+  iterations — well past the 1500-iter stock reference already). `play_policy.py` eval: tracking
+  error **0.123 m/s xy / 0.139 rad/s yaw** — comfortably under the guide's <0.2 m/s target, well
+  ahead of the stock baseline (0.375/0.416). Checkpoint:
+  `logs/rsl_rl/quadruped_distill_rough_go2/2026-09-22_10-54-27/model_1900.pt`.
+  - **Gotcha hit**: the run hung once mid-training (process alive, GPU idle, log stalled 30+ min)
+    — likely a CUDA-context issue from the laptop suspending/resuming during the multi-hour run,
+    not a code bug. Killed and resumed cleanly from the last checkpoint with `--resume --load_run
+    <folder> --checkpoint model_N.pt`, no code changes needed. If a future run hangs the same way
+    (log stops advancing, `nvidia-smi` shows no real compute), it's the same class of issue.
+  - **Gotcha**: rsl_rl's `--resume` treats `max_iterations` as "iterations to run from here," not
+    "total target" — resuming from iteration 500 with `max_iterations=1500` targets 2000 total,
+    not 1500. Also, resuming writes checkpoints to a **new** timestamped run folder, not the
+    original one — check `find logs/rsl_rl/quadruped_distill_rough_go2 -maxdepth 1 -type d` for
+    the latest folder, don't assume it's the one you passed to `--load_run`.
+  - Since rsl_rl has no built-in early stopping/patience, an external watcher script was used to
+    monitor the log and auto-kill on plateau (20-iteration rolling-average reward, 300-iteration
+    patience) — see `/tmp/.../scratchpad/early_stop_watch.sh` if reusing this pattern (that path
+    is session-local and won't exist in a new session — recreate if needed, it's ~30 lines).
 - **Not yet done**: the two ablation runs (no-curriculum, symmetric-critic — both required per
   the guide, expected results: no-curriculum should learn much slower/fail, symmetric-critic
   should show worse sample efficiency), then `eval_push_robustness.py` needs to actually be run
   against the finished teacher, GUI videos across terrain types, and `docs/30_teacher/README.md`'s
   "Will answer" section filled in (same treatment `docs/20_locomotion/README.md` got for Phase 1).
 
-## Resuming: check training state first
+## Resuming: next steps (teacher is DONE, start here)
 
-Any background process from a prior session is dead once that session/terminal closed — check
-before assuming anything is still running:
-```bash
-ps aux | grep train_rsl_rl
-find /home/ishaan/Desktop/IsaacLab-Proj/quadruped-distill/logs/rsl_rl/quadruped_distill_rough_go2 -maxdepth 1
-```
-If a checkpoint exists but training didn't reach 1500 iterations, either resume from the latest
-`model_N.pt` or just restart — checkpoints save every 50 iterations (`save_interval=50`) so
-little is lost either way. As of this handoff, the latest checkpoint is
-`logs/rsl_rl/quadruped_distill_rough_go2/2026-09-21_23-25-57/model_500.pt` (500/1500 iterations
-done). To resume from it:
-```bash
-source /home/ishaan/Desktop/IsaacLab-Proj/activate_isaaclab.sh
-cd /home/ishaan/Desktop/IsaacLab-Proj/quadruped-distill
-python scripts/train_rsl_rl.py --task QuadrupedDistill-Rough-Go2-v0 --headless --num_envs 4096 \
-    --resume --load_run 2026-09-21_23-25-57 --checkpoint model_500.pt
-```
-(Or check for a later checkpoint first — `find logs/rsl_rl/quadruped_distill_rough_go2 -name "model_*.pt" | sort`
-— in case a later session advanced it further before this handoff was last updated. To start
-fully fresh instead, drop `--resume --load_run ... --checkpoint ...`.)
+The full teacher is trained and gated — nothing to resume for it. Any background process from a
+prior session is dead once that session/terminal closed, so no need to check for a live
+training process. What's left, in order:
+
+1. **Two ablation runs** (both required per the guide):
+   ```bash
+   source /home/ishaan/Desktop/IsaacLab-Proj/activate_isaaclab.sh
+   cd /home/ishaan/Desktop/IsaacLab-Proj/quadruped-distill
+   python scripts/train_rsl_rl.py --task QuadrupedDistill-Rough-Go2-NoCurriculum-v0 --headless --num_envs 4096
+   python scripts/train_rsl_rl.py --task QuadrupedDistill-Rough-Go2-SymmetricCritic-v0 --headless --num_envs 4096
+   ```
+   Can use shorter iteration counts (`--max_iterations 400` or similar) for directional evidence
+   rather than the full 1500-2000 — matches how Phase 1's reward-ablation suite used 200 iters
+   vs the full run's 500. Expected results: no-curriculum should learn much slower or fail
+   outright (guide's prediction — confirm the actual curve, don't assume); symmetric-critic
+   should show worse sample efficiency than the full teacher's curve.
+   - **Watch for the same hang class** noted above on any run over ~30-40 min — if the log stalls
+     with the process still alive and GPU idle, kill and resume from the latest checkpoint rather
+     than assuming something broke. Consider re-arming an early-stopping watcher (see the pattern
+     above) for these too, especially since ablations don't need full convergence — just enough
+     to see the trend versus the full teacher.
+2. Record both ablation results in `notes/experiment_log.md`, comparing against the teacher's
+   0.123/0.139 numbers above.
+3. Run `scripts/eval_push_robustness.py` against the teacher's checkpoint:
+   ```bash
+   python -u scripts/eval_push_robustness.py --task QuadrupedDistill-Rough-Go2-v0 \
+       --checkpoint "$(pwd)/logs/rsl_rl/quadruped_distill_rough_go2/2026-09-22_10-54-27/model_1900.pt" \
+       --num-envs 512
+   ```
+   (Note the `-u` — same stdout-buffering gotcha as `play_policy.py`.)
+4. GUI playback videos (`scripts/play_rsl_rl.py`, no `--headless`) across terrain types, using
+   the same checkpoint.
+5. Fill in `docs/30_teacher/README.md`'s "Will answer" section with real findings from the above.
+6. Commit each piece separately, push, then Phase 2 is fully closed out — move to Phase 3.
+
 (`scripts/train_rsl_rl.py` is a thin wrapper that registers our `QuadrupedDistill-*` gym IDs
 before running Isaac Lab's own rsl_rl `train.py` — required because Isaac Lab's script only
 registers its own tasks by default. `scripts/play_rsl_rl.py` is the same pattern for GUI
 playback, `scripts/play_policy.py` for headless tracking-error eval.)
-
-**Expect ~2-2.5+ hours wall-clock** for a full 1500-iteration run at 4096 envs on rough terrain
-(confirmed from the baseline run) — don't expect quick turnaround, plan the session accordingly.
-
-## After the full teacher finishes
-
-1. Record results in `notes/experiment_log.md` (mean reward, tracking error, mean terrain level,
-   compare against the stock baseline numbers above).
-2. Run the two ablations (`QuadrupedDistill-Rough-Go2-NoCurriculum-v0`,
-   `-SymmetricCritic-v0`) — can use shorter iteration counts for directional evidence, matching
-   how Phase 1's reward-ablation suite was done (200 iters vs the full 500).
-3. Run `scripts/eval_push_robustness.py` against the teacher's final checkpoint.
-4. GUI playback videos (`scripts/play_rsl_rl.py`, no `--headless`) across terrain types.
-5. Fill in `docs/30_teacher/README.md`'s "Will answer" section with real findings.
 6. Commit each piece separately (matching the existing granular commit history), push.
 
 ## Conventions this project follows (don't relitigate these)
